@@ -1,3 +1,6 @@
 browser_data
 recordings
 .claude
+/.venv/
+.idea
+__pycache__
