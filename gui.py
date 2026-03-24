@@ -99,13 +99,17 @@ class RecorderApp(QMainWindow):
         self._selected_file: Optional[str] = None            # 当前选中的录制文件
 
         # 设置回调函数
-        self.recorder.set_on_action(self._on_action_recorded)
         self.player.set_on_status(self._on_play_status)
         self.player.set_on_remaining(self._on_play_remaining)
 
         # 连接信号到槽函数（用于跨线程UI更新）
         self.remaining_signal.connect(self._update_remaining_loops)
         self.status_signal.connect(self._update_play_status_text)
+
+        # 创建录制状态更新定时器
+        from PySide6.QtCore import QTimer
+        self._record_status_timer = QTimer(self)
+        self._record_status_timer.timeout.connect(self._update_record_status)
 
         # 创建界面
         self._create_widgets()
@@ -350,6 +354,15 @@ class RecorderApp(QMainWindow):
     def _clear_browser_cache(self) -> None:
         """清空浏览器cookie和缓存"""
         import shutil
+        import stat
+
+        def on_rm_error(func, path, exc_info):
+            """删除失败时尝试修改权限后重试"""
+            try:
+                os.chmod(path, stat.S_IWRITE)
+                func(path)
+            except:
+                pass
 
         reply = QMessageBox.question(
             self, "确认", "确定要清空浏览器缓存吗？这将清除登录状态。",
@@ -366,18 +379,14 @@ class RecorderApp(QMainWindow):
             cache_path = os.path.join(self.browser_data_dir, "cache")
 
             if os.path.exists(storage_path):
-                shutil.rmtree(storage_path)
+                shutil.rmtree(storage_path, onerror=on_rm_error)
             if os.path.exists(cache_path):
-                shutil.rmtree(cache_path)
+                shutil.rmtree(cache_path, onerror=on_rm_error)
 
             # 重新创建目录
             os.makedirs(storage_path, exist_ok=True)
             os.makedirs(cache_path, exist_ok=True)
 
-            # 刷新页面
-            self.browser.reload()
-
-            QMessageBox.information(self, "完成", "缓存已清空")
 
     def _start_recording(self) -> None:
         """开始录制"""
@@ -394,6 +403,9 @@ class RecorderApp(QMainWindow):
         self.btn_play.setEnabled(False)  # 禁用回放按钮
         self.lbl_record_status.setText("状态: 录制中 (已录制 0 个操作)")
 
+        # 启动定时器更新录制状态（每200ms更新一次）
+        self._record_status_timer.start(200)
+
         # 将焦点设置到浏览器
         self.browser.setFocus()
         self.browser.activateWindow()
@@ -402,6 +414,9 @@ class RecorderApp(QMainWindow):
 
     def _stop_recording(self) -> None:
         """停止录制并自动保存"""
+        # 停止状态更新定时器
+        self._record_status_timer.stop()
+
         self._current_recording = self.recorder.stop()
 
         # 更新UI状态
@@ -431,11 +446,6 @@ class RecorderApp(QMainWindow):
                 self.lbl_record_status.setText(f"状态: 保存失败 (共 {self._current_recording.action_count} 个操作)")
         else:
             self.lbl_record_status.setText("状态: 已停止 (无操作记录)")
-
-    def _on_action_recorded(self, count: int) -> None:
-        """操作录制回调 - 使用QTimer确保在主线程更新UI"""
-        from PySide6.QtCore import QTimer
-        QTimer.singleShot(0, self._update_record_status)
 
     def _update_record_status(self) -> None:
         """更新录制状态显示"""

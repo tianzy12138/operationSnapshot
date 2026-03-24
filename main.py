@@ -17,6 +17,29 @@
 4. 选择录制文件，设置循环次数，开始回放
 5. 按ESC可停止回放
 """
+import os
+import sys
+
+# 抑制 Chromium/QtWebEngine 的控制台输出
+os.environ['QT_LOGGING_RULES'] = '*.debug=false;qt.webengine.debug=false'
+os.environ['QTWEBENGINE_CHROMIUM_FLAGS'] = '--disable-logging --log-level=3 --silent-debugger-extension-api'
+
+# 重定向 stderr 到 null，抑制 Chromium 底层警告
+if sys.platform == 'win32':
+    import ctypes
+    kernel32 = ctypes.windll.kernel32
+    # 获取 null 设备句柄
+    null_handle = kernel32.CreateFileW(
+        'NUL',
+        0x40000000,  # GENERIC_WRITE
+        0x00000003,  # FILE_SHARE_READ | FILE_SHARE_WRITE
+        None,
+        0x03,        # OPEN_EXISTING
+        0,
+        None
+    )
+    # 重定向 stderr
+    kernel32.SetStdHandle(0xFFFFFFF4, null_handle)  # STD_ERROR_HANDLE = -12
 
 
 def main():
