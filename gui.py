@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEngineSettings, QWebEngineProfile, QWebEnginePage
 from PySide6.QtCore import Qt, QUrl, Signal
+from PySide6.QtGui import QKeySequence, QShortcut
 
 from recorder import Recorder
 from player import Player
@@ -45,6 +46,22 @@ class BrowserContainer(QWidget):
         # 设置浏览器大小
         self.browser.setFixedSize(width, height)
         super().resizeEvent(event)
+
+    def keyPressEvent(self, event):
+        """拦截键盘事件，处理F9和ESC热键"""
+        if event.key() == Qt.Key_F9:
+            # F9切换录制状态
+            if hasattr(self.parent(), '_toggle_recording'):
+                self.parent()._toggle_recording()
+            event.accept()
+            return
+        elif event.key() == Qt.Key_Escape:
+            # ESC停止回放
+            if hasattr(self.parent(), '_stop_playback'):
+                self.parent()._stop_playback()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
 
 class RecorderApp(QMainWindow):
@@ -95,6 +112,9 @@ class RecorderApp(QMainWindow):
 
         # 设置全局热键
         self._setup_hotkeys()
+
+        # 安装应用程序级别的事件过滤器，确保捕获浏览器内的键盘事件
+        QApplication.instance().installEventFilter(self)
 
         # 刷新文件列表
         self._refresh_file_list()
@@ -279,17 +299,29 @@ class RecorderApp(QMainWindow):
         splitter.setSizes([320, 880])
 
     def _setup_hotkeys(self) -> None:
-        """设置全局热键 (F9控制录制)"""
-        from pynput import keyboard
+        """设置全局热键 (F9控制录制, ESC停止回放)"""
+        import keyboard
 
-        def on_press(key):
-            if key == keyboard.Key.f9:
-                # 使用QTimer在主线程执行UI操作
-                from PySide6.QtCore import QTimer
-                QTimer.singleShot(0, self._toggle_recording)
+        # 使用keyboard库设置全局热键（底层钩子，可捕获浏览器内的按键）
+        keyboard.on_press_key('f9', lambda _: self._safe_toggle_recording())
+        keyboard.on_press_key('esc', lambda _: self._safe_stop_playback())
 
-        self._hotkey_listener = keyboard.Listener(on_press=on_press)
-        self._hotkey_listener.start()
+        # 同时使用QShortcut作为备用
+        self._f9_shortcut = QShortcut(QKeySequence(Qt.Key_F9), self)
+        self._f9_shortcut.activated.connect(self._toggle_recording)
+
+        self._esc_shortcut = QShortcut(QKeySequence(Qt.Key_Escape), self)
+        self._esc_shortcut.activated.connect(self._stop_playback)
+
+    def _safe_toggle_recording(self) -> None:
+        """线程安全地切换录制状态"""
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self._toggle_recording)
+
+    def _safe_stop_playback(self) -> None:
+        """线程安全地停止回放"""
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self._stop_playback)
 
     def _toggle_recording(self) -> None:
         """切换录制状态 - F9热键调用，始终有效"""
@@ -605,10 +637,23 @@ class RecorderApp(QMainWindow):
         if self.player.is_playing:
             self.player.stop()
 
-        if hasattr(self, '_hotkey_listener'):
-            self._hotkey_listener.stop()
+        # 移除事件过滤器
+        QApplication.instance().removeEventFilter(self)
 
         event.accept()
+
+    def eventFilter(self, obj, event) -> bool:
+        """应用程序级别事件过滤器，捕获F9和ESC热键"""
+        from PySide6.QtCore import QEvent
+        if event.type() == QEvent.KeyPress:
+            if event.key() == Qt.Key_F9:
+                self._toggle_recording()
+                return True  # 事件已处理
+            elif event.key() == Qt.Key_Escape:
+                if self.player.is_playing:
+                    self._stop_playback()
+                return True  # 事件已处理
+        return super().eventFilter(obj, event)
 
 
 def main():
