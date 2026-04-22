@@ -7,25 +7,25 @@
 - 回放控制面板
 - 文件管理功能
 """
-import os
 import json
+import os
 from datetime import datetime
 from typing import Optional
 
+from PySide6.QtCore import Qt, QUrl, Signal
+from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtWebEngineCore import QWebEngineSettings, QWebEngineProfile, QWebEnginePage
+from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QSpinBox, QDoubleSpinBox,
     QListWidget, QListWidgetItem, QGroupBox, QMessageBox,
     QFileDialog, QSplitter, QInputDialog
 )
-from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWebEngineCore import QWebEngineSettings, QWebEngineProfile, QWebEnginePage
-from PySide6.QtCore import Qt, QUrl, Signal
-from PySide6.QtGui import QKeySequence, QShortcut
 
-from recorder import Recorder
-from player import Player
 from models import Recording
+from player import Player
+from recorder import Recorder
 
 
 class BrowserContainer(QWidget):
@@ -77,7 +77,22 @@ class RecorderApp(QMainWindow):
     status_signal = Signal(str)      # 回放状态更新信号
 
     GAME_URL = "https://gamer.qq.com/v2/game/96897"  # 默认游戏URL
-    RECORDINGS_DIR = os.path.join(os.path.dirname(__file__), "recordings")  # 录制文件存储目录
+
+    @staticmethod
+    def _get_app_dir():
+        """获取应用程序所在目录（兼容打包后和开发环境）"""
+        import sys
+        if getattr(sys, 'frozen', False):
+            # 打包后的exe
+            return os.path.dirname(sys.executable)
+        else:
+            # 开发环境
+            return os.path.dirname(__file__)
+
+    @property
+    def RECORDINGS_DIR(self):
+        """录制文件存储目录"""
+        return os.path.join(self._get_app_dir(), "recordings")
 
     def __init__(self):
         """初始化应用"""
@@ -274,7 +289,7 @@ class RecorderApp(QMainWindow):
         self.browser = QWebEngineView()
 
         # 创建持久化profile，cookie将保存在指定目录
-        self.browser_data_dir = os.path.join(os.path.dirname(__file__), "browser_data")
+        self.browser_data_dir = os.path.join(self._get_app_dir(), "browser_data")
         os.makedirs(self.browser_data_dir, exist_ok=True)
 
         self.browser_profile = QWebEngineProfile("GameBrowser", self.browser)
