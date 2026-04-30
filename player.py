@@ -30,6 +30,7 @@ class Player:
         self._on_status: Optional[Callable[[str], None]] = None     # 状态更新回调
         self._on_remaining: Optional[Callable[[int], None]] = None  # 剩余次数回调
         self._browser_rect_callback: Optional[Callable] = None  # 浏览器窗口位置回调
+        self._is_relative_coords: bool = False  # 当前录制是否使用相对坐标
 
         # pyautogui 设置
         pyautogui.PAUSE = 0       # 操作间隔设为0，由程序自己控制时间
@@ -72,6 +73,9 @@ class Player:
         self._is_playing = True
         self._should_stop = False
         self._remaining_loops = loops
+
+        # 判断录制文件是否使用相对坐标（有 window_width 表示相对坐标）
+        self._is_relative_coords = recording.window_width is not None
 
         # 通知开始回放
         self._notify_status("回放中")
@@ -174,7 +178,7 @@ class Player:
             # 计算绝对坐标（如果有回调且有相对坐标）
             abs_x = action.x
             abs_y = action.y
-            if self._browser_rect_callback and abs_x is not None and abs_y is not None:
+            if self._is_relative_coords and self._browser_rect_callback and abs_x is not None and abs_y is not None:
                 bx, by, _, _ = self._browser_rect_callback()
                 abs_x = abs_x + bx
                 abs_y = abs_y + by
