@@ -85,6 +85,8 @@ class Recording:
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     total_duration: float = 0.0
     actions: List[Action] = field(default_factory=list)
+    window_width: Optional[int] = None   # 新增：录制时浏览器窗口宽度
+    window_height: Optional[int] = None  # 新增：录制时浏览器窗口高度
 
     @property
     def action_count(self) -> int:
@@ -98,12 +100,17 @@ class Recording:
         Returns:
             包含所有录制数据的字典
         """
-        return {
+        result = {
             "name": self.name,
             "created_at": self.created_at,
             "total_duration": self.total_duration,
             "actions": [a.to_dict() for a in self.actions]
         }
+        if self.window_width is not None:
+            result["window_width"] = self.window_width
+        if self.window_height is not None:
+            result["window_height"] = self.window_height
+        return result
 
     @classmethod
     def from_dict(cls, data: dict) -> 'Recording':
@@ -121,7 +128,9 @@ class Recording:
             name=data.get("name", "unnamed"),
             created_at=data.get("created_at", ""),
             total_duration=data.get("total_duration", 0.0),
-            actions=actions
+            actions=actions,
+            window_width=data.get("window_width"),
+            window_height=data.get("window_height"),
         )
 
     def to_json(self, filepath: str) -> None:
