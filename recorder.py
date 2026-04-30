@@ -32,7 +32,7 @@ class Recorder:
 
         # 回调函数
         self._on_action: Optional[Callable[[int], None]] = None  # 操作计数回调
-        self._browser_rect_callback: Optional[Callable] = None  # 新增
+        self._browser_rect_callback: Optional[Callable[[], Tuple[int, int, int, int]]] = None  # 浏览器窗口位置回调
 
     @property
     def is_recording(self) -> bool:
