@@ -6,7 +6,7 @@
 """
 import time
 import threading
-from typing import Callable, Optional, List
+from typing import Callable, Optional, List, Tuple
 from pynput import mouse, keyboard
 from models import Action, Recording
 
@@ -32,6 +32,7 @@ class Recorder:
 
         # 回调函数
         self._on_action: Optional[Callable[[int], None]] = None  # 操作计数回调
+        self._browser_rect_callback: Optional[Callable] = None  # 新增
 
     @property
     def is_recording(self) -> bool:
@@ -51,6 +52,10 @@ class Recorder:
     def set_on_action(self, callback: Callable[[int], None]) -> None:
         """设置操作计数回调函数"""
         self._on_action = callback
+
+    def set_browser_rect_callback(self, callback: Callable[[], Tuple[int, int, int, int]]) -> None:
+        """设置获取浏览器窗口位置的回调，返回 (abs_x, abs_y, width, height)"""
+        self._browser_rect_callback = callback
 
     def start(self, name: str = "recording") -> None:
         """
@@ -112,6 +117,12 @@ class Recorder:
             for action in self._actions:
                 self._recording.add_action(action)
 
+            # 记录窗口尺寸
+            if self._browser_rect_callback:
+                _, _, w, h = self._browser_rect_callback()
+                self._recording.window_width = w
+                self._recording.window_height = h
+
         return self._recording
 
     def _get_timestamp(self) -> float:
@@ -134,11 +145,17 @@ class Recorder:
         if not self._is_recording:
             return
 
+        # 转换为相对坐标
+        rx, ry = x, y
+        if self._browser_rect_callback:
+            bx, by, _, _ = self._browser_rect_callback()
+            rx, ry = x - bx, y - by
+
         action = Action(
             type="mouse_move",
             timestamp=self._get_timestamp(),
-            x=x,
-            y=y
+            x=rx,
+            y=ry
         )
         self._actions.append(action)
         self._notify_action()
@@ -156,11 +173,17 @@ class Recorder:
         if not self._is_recording:
             return
 
+        # 转换为相对坐标
+        rx, ry = x, y
+        if self._browser_rect_callback:
+            bx, by, _, _ = self._browser_rect_callback()
+            rx, ry = x - bx, y - by
+
         action = Action(
             type="mouse_click",
             timestamp=self._get_timestamp(),
-            x=x,
-            y=y,
+            x=rx,
+            y=ry,
             button=button.name,
             pressed=pressed
         )
@@ -180,11 +203,17 @@ class Recorder:
         if not self._is_recording:
             return
 
+        # 转换为相对坐标
+        rx, ry = x, y
+        if self._browser_rect_callback:
+            bx, by, _, _ = self._browser_rect_callback()
+            rx, ry = x - bx, y - by
+
         action = Action(
             type="mouse_scroll",
             timestamp=self._get_timestamp(),
-            x=x,
-            y=y,
+            x=rx,
+            y=ry,
             dx=dx,
             dy=dy
         )
