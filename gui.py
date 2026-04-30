@@ -317,6 +317,11 @@ class RecorderApp(QMainWindow):
         # 设置分割比例（左侧320像素，右侧880像素）
         splitter.setSizes([320, 880])
 
+    def _get_browser_rect(self) -> tuple:
+        """获取浏览器窗口在屏幕上的位置和大小，返回 (abs_x, abs_y, width, height)"""
+        pos = self.browser.mapToGlobal(self.browser.rect().topLeft())
+        return (pos.x(), pos.y(), self.browser.width(), self.browser.height())
+
     def _setup_hotkeys(self) -> None:
         """设置全局热键 (F9控制录制, ESC停止回放)"""
         import keyboard
@@ -408,6 +413,9 @@ class RecorderApp(QMainWindow):
         # 如果在回放中，先停止回放（互斥）
         if self.player.is_playing:
             self._stop_playback()
+
+        # 设置浏览器窗口位置回调
+        self.recorder.set_browser_rect_callback(self._get_browser_rect)
 
         name = datetime.now().strftime('%H时%M分%S秒')
         self.recorder.start(name)
@@ -518,6 +526,9 @@ class RecorderApp(QMainWindow):
         if recording.action_count == 0:
             QMessageBox.warning(self, "警告", "录制文件为空")
             return
+
+        # 设置浏览器窗口位置回调
+        self.player.set_browser_rect_callback(self._get_browser_rect)
 
         # 获取回放参数
         loops = self.spin_loops.value()

@@ -6,7 +6,7 @@
 """
 import time
 import threading
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 import pyautogui
 import keyboard
 from models import Recording, Action
@@ -29,6 +29,7 @@ class Player:
         # 回调函数
         self._on_status: Optional[Callable[[str], None]] = None     # 状态更新回调
         self._on_remaining: Optional[Callable[[int], None]] = None  # 剩余次数回调
+        self._browser_rect_callback: Optional[Callable] = None  # 浏览器窗口位置回调
 
         # pyautogui 设置
         pyautogui.PAUSE = 0       # 操作间隔设为0，由程序自己控制时间
@@ -51,6 +52,10 @@ class Player:
     def set_on_remaining(self, callback: Callable[[int], None]) -> None:
         """设置剩余次数更新回调函数"""
         self._on_remaining = callback
+
+    def set_browser_rect_callback(self, callback: Callable[[], Tuple[int, int, int, int]]) -> None:
+        """设置获取浏览器窗口位置的回调，返回 (abs_x, abs_y, width, height)"""
+        self._browser_rect_callback = callback
 
     def play(self, recording: Recording, loops: int = 1, interval: float = 0.0) -> None:
         """
@@ -166,21 +171,29 @@ class Player:
             action: 要执行的操作对象
         """
         try:
+            # 计算绝对坐标（如果有回调且有相对坐标）
+            abs_x = action.x
+            abs_y = action.y
+            if self._browser_rect_callback and abs_x is not None and abs_y is not None:
+                bx, by, _, _ = self._browser_rect_callback()
+                abs_x = abs_x + bx
+                abs_y = abs_y + by
+
             if action.type == "mouse_move":
                 # 鼠标移动
-                pyautogui.moveTo(action.x, action.y)
+                pyautogui.moveTo(abs_x, abs_y)
 
             elif action.type == "mouse_click":
                 # 鼠标点击（按下或释放）
                 button = action.button or "left"
                 if action.pressed:
-                    pyautogui.mouseDown(button=button, x=action.x, y=action.y)
+                    pyautogui.mouseDown(button=button, x=abs_x, y=abs_y)
                 else:
-                    pyautogui.mouseUp(button=button, x=action.x, y=action.y)
+                    pyautogui.mouseUp(button=button, x=abs_x, y=abs_y)
 
             elif action.type == "mouse_scroll":
                 # 鼠标滚轮（pyautogui的scroll参数正向为向下滚动）
-                pyautogui.scroll(action.dy or 0, action.x, action.y)
+                pyautogui.scroll(action.dy or 0, abs_x, abs_y)
 
             elif action.type == "key_press":
                 # 键盘按键（按下或释放）
