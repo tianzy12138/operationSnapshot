@@ -463,6 +463,12 @@ class RecorderApp(QMainWindow):
             try:
                 self._current_recording.to_json(filepath)
                 self._refresh_file_list()
+                # 自动选中最新录制的文件
+                self._selected_file = filepath
+                self.lbl_selected_file.setText(filename)
+                self.lbl_selected_file.setStyleSheet("color: black;")
+                if self.listbox.count() > 0:
+                    self.listbox.setCurrentRow(0)
                 self.lbl_record_status.setText(f"状态: 已保存 {filename} (共 {self._current_recording.action_count} 个操作)")
             except Exception as e:
                 QMessageBox.critical(self, "错误", f"保存失败: {e}")
