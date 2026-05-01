@@ -48,8 +48,14 @@ class BrowserContainer(QWidget):
         super().resizeEvent(event)
 
     def keyPressEvent(self, event):
-        """拦截键盘事件，处理F9和ESC热键"""
-        if event.key() == Qt.Key_F9:
+        """拦截键盘事件，处理F8/F9/ESC热键"""
+        if event.key() == Qt.Key_F8:
+            # F8切换回放状态
+            if hasattr(self.parent(), '_toggle_playback'):
+                self.parent()._toggle_playback()
+            event.accept()
+            return
+        elif event.key() == Qt.Key_F9:
             # F9切换录制状态
             if hasattr(self.parent(), '_toggle_recording'):
                 self.parent()._toggle_recording()
@@ -204,7 +210,7 @@ class RecorderApp(QMainWindow):
 
         # 回放按钮行
         play_btn_layout = QHBoxLayout()
-        self.btn_play = QPushButton("开始回放")
+        self.btn_play = QPushButton("开始回放 (F8)")
         self.btn_play.clicked.connect(self._start_playback)
         play_btn_layout.addWidget(self.btn_play)
 
@@ -323,14 +329,18 @@ class RecorderApp(QMainWindow):
         return (pos.x(), pos.y(), self.browser.width(), self.browser.height())
 
     def _setup_hotkeys(self) -> None:
-        """设置全局热键 (F9控制录制, ESC停止回放)"""
+        """设置全局热键 (F8控制回放, F9控制录制, ESC停止回放)"""
         import keyboard
 
         # 使用keyboard库设置全局热键（底层钩子，可捕获浏览器内的按键）
+        keyboard.on_press_key('f8', lambda _: self._safe_toggle_playback())
         keyboard.on_press_key('f9', lambda _: self._safe_toggle_recording())
         keyboard.on_press_key('esc', lambda _: self._safe_stop_playback())
 
         # 同时使用QShortcut作为备用
+        self._f8_shortcut = QShortcut(QKeySequence(Qt.Key_F8), self)
+        self._f8_shortcut.activated.connect(self._toggle_playback)
+
         self._f9_shortcut = QShortcut(QKeySequence(Qt.Key_F9), self)
         self._f9_shortcut.activated.connect(self._toggle_recording)
 
@@ -341,6 +351,11 @@ class RecorderApp(QMainWindow):
         """线程安全地切换录制状态"""
         from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self._toggle_recording)
+
+    def _safe_toggle_playback(self) -> None:
+        """线程安全地切换回放状态"""
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self._toggle_playback)
 
     def _safe_stop_playback(self) -> None:
         """线程安全地停止回放"""
@@ -356,6 +371,16 @@ class RecorderApp(QMainWindow):
             if self.player.is_playing:
                 self._stop_playback()
             self._start_recording()
+
+    def _toggle_playback(self) -> None:
+        """切换回放状态 - F8热键调用，始终有效"""
+        if self.player.is_playing:
+            self._stop_playback()
+        else:
+            # 如果在录制中，先停止录制
+            if self.recorder.is_recording:
+                self._stop_recording()
+            self._start_playback()
 
     def _refresh_browser(self) -> None:
         """跳转到输入框中的URL"""
@@ -686,10 +711,13 @@ class RecorderApp(QMainWindow):
         event.accept()
 
     def eventFilter(self, obj, event) -> bool:
-        """应用程序级别事件过滤器，捕获F9和ESC热键"""
+        """应用程序级别事件过滤器，捕获F8/F9/ESC热键"""
         from PySide6.QtCore import QEvent
         if event.type() == QEvent.KeyPress:
-            if event.key() == Qt.Key_F9:
+            if event.key() == Qt.Key_F8:
+                self._toggle_playback()
+                return True  # 事件已处理
+            elif event.key() == Qt.Key_F9:
                 self._toggle_recording()
                 return True  # 事件已处理
             elif event.key() == Qt.Key_Escape:
