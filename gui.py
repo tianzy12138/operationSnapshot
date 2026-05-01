@@ -318,20 +318,9 @@ class RecorderApp(QMainWindow):
         splitter.setSizes([320, 880])
 
     def _get_browser_rect(self) -> tuple:
-        """获取浏览器窗口在屏幕上的位置和大小，返回 (abs_x, abs_y, width, height)
-        使用 BlockingQueuedConnection 确保 Qt GUI 方法在主线程执行。
-        """
-        self._cached_browser_rect = (0, 0, 0, 0)
-        QMetaObject.invokeMethod(
-            self, "_update_browser_rect", Qt.BlockingQueuedConnection
-        )
-        return self._cached_browser_rect
-
-    @Slot()
-    def _update_browser_rect(self):
-        """在主线程中刷新浏览器窗口位置缓存"""
+        """获取浏览器窗口在屏幕上的位置和大小，返回 (abs_x, abs_y, width, height)"""
         pos = self.browser.mapToGlobal(self.browser.rect().topLeft())
-        self._cached_browser_rect = (pos.x(), pos.y(), self.browser.width(), self.browser.height())
+        return (pos.x(), pos.y(), self.browser.width(), self.browser.height())
 
     def _setup_hotkeys(self) -> None:
         """设置全局热键 (F9控制录制, ESC停止回放)"""
