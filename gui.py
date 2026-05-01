@@ -12,7 +12,7 @@ import os
 from datetime import datetime
 from typing import Optional
 
-from PySide6.QtCore import Qt, QUrl, Signal
+from PySide6.QtCore import Qt, QUrl, Signal, Slot, QMetaObject
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWebEngineCore import QWebEngineSettings, QWebEngineProfile, QWebEnginePage
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -318,9 +318,20 @@ class RecorderApp(QMainWindow):
         splitter.setSizes([320, 880])
 
     def _get_browser_rect(self) -> tuple:
-        """获取浏览器窗口在屏幕上的位置和大小，返回 (abs_x, abs_y, width, height)"""
+        """获取浏览器窗口在屏幕上的位置和大小，返回 (abs_x, abs_y, width, height)
+        使用 BlockingQueuedConnection 确保 Qt GUI 方法在主线程执行。
+        """
+        self._cached_browser_rect = (0, 0, 0, 0)
+        QMetaObject.invokeMethod(
+            self, "_update_browser_rect", Qt.BlockingQueuedConnection
+        )
+        return self._cached_browser_rect
+
+    @Slot()
+    def _update_browser_rect(self):
+        """在主线程中刷新浏览器窗口位置缓存"""
         pos = self.browser.mapToGlobal(self.browser.rect().topLeft())
-        return (pos.x(), pos.y(), self.browser.width(), self.browser.height())
+        self._cached_browser_rect = (pos.x(), pos.y(), self.browser.width(), self.browser.height())
 
     def _setup_hotkeys(self) -> None:
         """设置全局热键 (F9控制录制, ESC停止回放)"""
@@ -527,8 +538,9 @@ class RecorderApp(QMainWindow):
             QMessageBox.warning(self, "警告", "录制文件为空")
             return
 
-        # 设置浏览器窗口位置回调
-        self.player.set_browser_rect_callback(self._get_browser_rect)
+        # 在主线程中缓存窗口位置，避免回放线程调用Qt方法
+        cached_rect = self._get_browser_rect()
+        self.player.set_browser_rect_callback(lambda: cached_rect)
 
         # 获取回放参数
         loops = self.spin_loops.value()
