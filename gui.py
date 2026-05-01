@@ -214,7 +214,7 @@ class RecorderApp(QMainWindow):
         self.btn_play.clicked.connect(self._start_playback)
         play_btn_layout.addWidget(self.btn_play)
 
-        self.btn_stop_play = QPushButton("停止回放 (ESC)")
+        self.btn_stop_play = QPushButton("停止回放 (F8)")
         self.btn_stop_play.clicked.connect(self._stop_playback)
         self.btn_stop_play.setEnabled(False)
         play_btn_layout.addWidget(self.btn_stop_play)
